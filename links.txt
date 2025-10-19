@@ -1,0 +1,37 @@
+Economy:
+https://github.com/OpportunityInsights/EconomicTracker
+- real-time picture of indicators such as employment rates, consumer spending, and job postings across counties, industries, and income groups
+- Data: 2019-2020 information data, state, city, number of job posting, covid cases, employment level, consumer spending by category
+Ideas for analysis:
+1. percent of spending based on category
+2. correlation between job posting and employment level
+
+
+Occupation and Wage:
+https://www.bls.gov/oes/tables.htm
+- One file per year: 2012-2024
+- All_data file: US Totals, WA Totals by area, Occupation name, total employment, average page by wage and salary
+Ideas for analysis:
+1. compare WA averages to US Total and compare city averages to US Total and identify outliers
+2. compare year over year change within WA cities
+
+
+Demographic:
+https://data.census.gov/table/ACSST1Y2024.S0101?q=acs&g=040XX00US53$0500000&tp=true
+- One file per year: 2010-2024
+- ACS 1-Year Estimates: WA counties, total population, population split by age, sex, race, mixed-race
+Ideas for analysis:
+1. show percentage of each demographic make up
+2. show year-over-year change for each demographic
+
+
+Housing Market
+https://ffiec.cfpb.gov/data-browser/data/2024?category=states&items=WA
+- One file per year: 2018-2024
+- each row is one application 
+- year, county, income, race, ethnicity, age, loan amount, denial of application
+Ideas for analysis:
+1. Show number of loan per county and loan amount
+2. show percentage of denials based on county or demographic
+
+
