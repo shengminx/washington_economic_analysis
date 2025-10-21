@@ -22,11 +22,7 @@ library(stringr)
 
 ```
 
-``` {r test}
 
-list.files()
-
-```
 
 Data Preparation
 
@@ -40,14 +36,11 @@ Files  are renamed, converted, and combined to one csv file per type for ease of
 
 folder = "hmda_housing_market"
 setwd(folder)
-
 files = list.files()
 
 for (f in files) {
   base = basename(f)
-  print(base)
   df_name = paste0("housing_market_", substr(base, 10, 13))
-  print(df_name)
   df = read.csv(f)
   head(df)
   assign(df_name, df)
@@ -57,34 +50,13 @@ for (f in files) {
 
 # load occupation data
 
-
-folder = "occupation_wage/csv"
-print(folder)
+folder = "occupation_wage"
 setwd(folder)
-getwd()
-
 files = list.files()
-files
-
-
-### initially used to convert all excel files to csv for fasting reading and parsing later
-# for (f in files) {
-#   base = basename(f)
-#   print(paste0("processing file ", base))
-#   df_name = paste0("occup_wage_", substr(base, 12, 15))
-#   temp = read_excel(f, col_type="text")
-#   write.csv(temp, paste0("H:/Bank/Great Western Data Challenge/occupation_wage/", df_name, ".csv"), row.names=FALSE)
-#   print(paste0("saved to H:/Bank/Great Western Data Challenge/occupation_wage/", df_name, ".csv"))
-#   df = fread("temp.csv")
-#   head(df)
-#   assign(df_name, df)
-# }
 
 for (f in files) {
   base = basename(f)
-  print(base)
-  df_name = paste0("occ_wage_", substr(base, 12, 15))
-  print(df_name)
+  df_name = paste0("occ_wage_", substr(base,1,4))
   df = read.csv(f)
   head(df)
   assign(df_name, df)
@@ -96,32 +68,25 @@ for (f in files) {
 
 folder = "economics_tracker"
 setwd(folder)
-
 files = list.files()
 
 for (f in files) {
   df_name = paste0("economics_", f, sep = "")
-  print(df_name)
   df = read.csv(f)
   head(df)
   assign(df_name, df)
 }
 
 
-
-
 # load demographics data
 
 folder = "demographics"
 setwd(folder)
-
 files = list.files()
 
 for (f in files) {
   base = basename(f)
-  print(base)
   df_name = paste("demographics_", substr(base, 8, 11), sep = "")
-  print(df_name)
   df = read.csv(f)
   head(df)
   assign(df_name, df)
@@ -147,26 +112,8 @@ dfs = lapply(names(dfs), function(name) {
 
 df_all = rbindlist(dfs, fill=TRUE)
 
-write_csv(df_all, "occupation_wage_2014_to_2024.csv")
+write_csv(df_all, "occupation_wage_2018_to_2024.csv")
 
-
-
-# Demographics data
-# Add year as column before merging
-
-dfs = mget(ls(pattern = "^demographics_\\d{4}$"))
-
-dfs = lapply(names(dfs), function(name) {
-  year = sub(".*_(\\d{4})$", "\\1", name)
-  df = dfs[[name]]
-  names(df) = tolower(names(df))
-  df$year = as.integer(year)
-  return(df)
-} )
-
-df_all = rbindlist(dfs, fill=TRUE)
-
-write_csv(df_all, "demographics_2011_to_2024.csv")
 
 
 
@@ -194,9 +141,9 @@ write_csv(df_all, "housing_market_2018_to_2024.csv")
 
 # load demographics data
 
-demographics = fread("demographics_2011_to_2024.csv")
+demographics = fread("demographics_2011_to_2024.csv", header = TRUE)
 housing_market = fread("housing_market_2018_to_2024.csv")
-occu_wage = fread("occupation_wage_2014_to_2024.csv")
+job_market = fread("occupation_wage_2018_to_2024.csv")
 
 
 # load economics data
@@ -207,9 +154,8 @@ setwd(folder)
 files = list.files()
 
 for (f in files) {
-  df_name = f
+  df_name = paste0("econ_", f)
   df = fread(f)
-  head(df)
   assign(df_name, df)
 }
 
@@ -219,15 +165,206 @@ for (f in files) {
 
 
 
-``` {r prep data}
+``` {r prep job market data}
+
+# Job market
+
+job_filtered <- job_market %>%
+  select(year, area_title, occ_title, o_group, tot_emp, hourly_mean = h_mean, annual_mean = a_mean) %>%
+  filter(str_detect(tolower(area_title), ",\\s*wa$|\\bwashington\\b"),
+         !grepl("nonmetropolitan|washington-|metropolitan", tolower(area_title)),
+         o_group %in% c("total", "major")) %>%
+  mutate(occ_title = str_remove(occ_title, "\\s*Occupations$"))
+
+# write to csv
+write_csv(job_filtered, "job_market_filter_2018_to_2024.csv")
 
 
-occ_wage_filtered <- occu_wage %>%
-  select(year, area_title, occ.title, group, tot_emp, jobs_1000, percent_total = loc_quotient, hr_mean = h_mean, a_mean = a_mean) %>%
-  filter(str_detect(tolower(area_title), "u\\.s\\.?$|,\\s*wa$|\\bwashington\\b"))
 
-head(occ_wage_filtered)
+job_filtered %>%
+  filter(area_title != "Washington") %>%
+  mutate(
+    occ_title = str_remove(occ_title, "\\s*Occupations?$"),   # remove trailing “Occupation” or “Occupations”
+    tot_emp = as.numeric(gsub(",", "", tot_emp))              # ensure numeric
+  ) %>%
+  group_by(occ_title) %>%
+  summarise(tot_emp = sum(tot_emp, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(tot_emp)) %>%                                  # sort largest → smallest
+  ggplot(aes(x = reorder(occ_title, tot_emp), y = tot_emp)) +
+  geom_col(fill = "skyblue", color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Total Employment by Occupation",
+    x = "Occupation Title",
+    y = "Total Employment"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+
 
 ```
 
+
+
+
+``` {r prep demographics data}
+
+# Demographics data
+
+demographics_filtered <- demographics[, !duplicated(names(demographics)), with = FALSE] %>%
+  select(county = `Geographic Area Name`, !matches("Error|Percent|NA|^V")) %>%
+  mutate(year = `2010`,
+         total = `Estimate!!SEX AND AGE!!Total population`,
+         male = `Estimate!!SEX AND AGE!!Male`,
+         female = `Estimate!!SEX AND AGE!!Female`,
+         age_less_than_15 = `Estimate!!SEX AND AGE!!Under 5 years` + 
+           `Estimate!!SEX AND AGE!!5 to 9 years` + 
+           `Estimate!!SEX AND AGE!!10 to 14 years`, 
+         age_15_to_24 = `Estimate!!SEX AND AGE!!15 to 19 years` + `Estimate!!SEX AND AGE!!20 to 24 years`,
+         age_25_to_34 = `Estimate!!SEX AND AGE!!25 to 34 years`,
+         age_35_to_44 = `Estimate!!SEX AND AGE!!35 to 44 years`,
+         age_45_to_54 = `Estimate!!SEX AND AGE!!45 to 54 years`,
+         age_55_to_64 = `Estimate!!SEX AND AGE!!55 to 59 years` + `Estimate!!SEX AND AGE!!60 to 64 years`,
+         age_65_to_74 = `Estimate!!SEX AND AGE!!65 to 74 years`,
+         age_75_to_84 = `Estimate!!SEX AND AGE!!75 to 84 years`,
+         age_85_and_above = `Estimate!!SEX AND AGE!!85 years and over`,
+         race_white = `Estimate!!RACE!!White`,
+         race_black = `Estimate!!RACE!!Black or African American`,                                                  race_asian = `Estimate!!RACE!!Asian`,
+         race_other = `Estimate!!RACE!!Some other race`,
+         hispanic_latino = `Estimate!!HISPANIC OR LATINO AND RACE!!Hispanic or Latino (of any race)`,
+         not_hispanic_latino = `Estimate!!HISPANIC OR LATINO AND RACE!!Not Hispanic or Latino`,
+         total_housing_unit = `Estimate!!Total housing units`
+         )
+
+mutated_cols <- setdiff(names(demographics_filtered), names(demographics))
+demographics_filtered <- demographics_filtered %>%
+  select(all_of(mutated_cols))
+
+
+# write to csv
+write_csv(demographics_filtered, "demographics_filter_2010_to_2024.csv")
+
+
+
+```
+
+
+
+
+``` {r prep housing market data}
+
+# housing market
+
+housing_market_filtered <- housing_market %>%
+  select(activity_year, county_code, derived_race, applicant_race.1, applicant_race.2, applicant_race.3, co.applicant_race.1, derived_sex, applicant_sex, applicant_sex_observed, co.applicant_sex, income, applicant_age, denial_reason.1)
+
+
+
+# write to csv
+write_csv(housing_market_filtered, "housing_market_filtered_2018_to_2024.csv")
+
+
+
+
+```
+
+
+``` {r prep economics data}
+
+
+
+wa_county_id <- econ_GeoIDs_County.csv %>%
+  filter(stateabbrev %in% "WA") %>%
+  select(countyfips, countyname, statename, statefips, stateabbrev, county_pop2019)
+
+
+# employment
+
+wa_employment <- merge(wa_county_id, econ_employment_county_weekly.csv, by = "countyfips") %>%
+  mutate(weekof = make_date(year, month, day_endofweek)) %>%
+  select(countyfips, countyname, statename, year, month, day_endofweek, weekof, emp)
+
+# write to csv
+write_csv(wa_employment, "county_weekly_employment_2020_to_2025.csv")
+
+
+
+# spending
+
+## column descriptions from data dictionary https://github.com/OpportunityInsights/EconomicTracker/blob/main/docs/oi_tracker_data_dictionary.md
+
+# state level
+
+wa_state_monthly_spending <- econ_spending_state_monthly.csv %>%
+  filter(statefips %in% unique(wa_county_id$statefips)) %>%
+  mutate(date = make_date(year, month, 1L), state = "WA") %>%
+  select(
+    statefips, state, year, month, day_endofmonth, date,
+    all                                  = spend_all,
+    `apparel and accessories`            = spend_aap,
+    `accommodation and food service`     = spend_acf,
+    `arts, entertainment, and recreation`= spend_aer,
+    `general merchandise stores`         = spend_gen,
+    `grocery and food store`             = spend_grf,
+    `health care and social assistance`  = spend_hcs,
+    `home improvement centers`           = spend_hic,
+    `sporting goods and hobby`           = spend_sgh,
+    `transportation and warehousing`     = spend_tws,
+    `durable goods`                      = spend_durables,
+    `non-durable goods`                  = spend_nondurables,
+    `remote services`                    = spend_remoteservices,
+    `in-person services`                 = spend_inperson,
+    `other in-person services`           = spend_inpersonmisc
+  ) %>%
+  pivot_longer(
+    cols = -c(statefips, state, year, month, day_endofmonth, date),
+    names_to  = "spending_type",
+    values_to = "indexed_change",
+    values_drop_na = FALSE
+  )
+
+write_csv(wa_state_monthly_spending, "state_monthly_spending_2020_to_2025.csv")
+
+
+# county level
+
+wa_county_monthly_spending <- merge(wa_county_id, econ_spending_county_monthly.csv, by = "countyfips") %>%
+  mutate(date = make_date(year, month, 1L)) %>%
+  select(countyfips, countyname, statename, year, month, day_endofmonth, date, spend_all)
+
+# write to csv
+write_csv(wa_county_monthly_spending, "county_monthly_spending_2020_to_2025.csv")
+
+
+
+# job postings
+
+wa_county_job_postings <- merge(wa_county_id, econ_job_postings_county_weekly.csv, by = "countyfips") %>%
+  mutate(weekof = make_date(year, month, day_endofweek)) %>%
+  select(countyfips, countyname, statename, year, month, day_endofweek, weekof,
+         all                          = bg_posts, 
+         `requiring low preparation`  = bg_posts_jzgrp12, 
+         `requiring high preparation` = bg_posts_jzgrp345) %>%
+  pivot_longer(
+    cols = -c(countyfips, countyname, statename, year, month, day_endofweek, weekof),
+    names_to  = "job_posting_type",
+    values_to = "indexed_change_relative_to_jan_2020",
+    values_drop_na = FALSE
+  )
+
+
+# write to csv
+write_csv(wa_county_job_postings, "county_weekly_job_postings_2020_to_2025.csv")
+
+
+
+
+```
 
